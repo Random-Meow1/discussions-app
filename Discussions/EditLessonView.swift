@@ -3,41 +3,109 @@ import SwiftData
 
 struct EditLessonView: View {
     @Bindable var lesson: Lesson
+    @FocusState private var focusedField
+    @State private var isDeletingSection: Bool = false
 
     var body: some View {
         NavigationStack {
-            List {
-                TextField("Title", text: $lesson.title, axis: .vertical)
-                    .font(.largeTitle.bold())
-                
-                TextField("Subtitle", text: $lesson.subtitle, axis: .vertical)
-                    .font(.subheadline)
-
-                ForEach($lesson.Sections) { $section in
-                    EditSectionView(section: $section)
-                }
-                .onDelete(perform: deleteSection)
-            }
-            .listStyle(.plain)
-            .navigationTitle("Editing \"\(lesson.title)\"")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationSubtitle("Created \(lesson.dateCreated, style: .relative) ago")
-            .toolbar {
-                ToolbarItem {
-                    Button {
-                        withAnimation {
-                            lesson.Sections.append(Section())
+            ScrollView {
+                VStack {
+                    TextField("Title", text: $lesson.title, axis: .vertical)
+                        .font(.largeTitle.bold())
+                        .focused($focusedField)
+                    
+                    TextField("Subtitle", text: $lesson.subtitle, axis: .vertical)
+                        .font(.subheadline)
+                        .focused($focusedField)
+                    
+                    if !isDeletingSection && !lesson.Sections.isEmpty {
+                        ForEach($lesson.Sections) { $section in
+                            EditSectionView(section: $section)
+                                .focused($focusedField)
+                            
+                            Button(role: .destructive) {
+                                Task {
+                                    withAnimation(.smooth(duration: 0.02)) {
+                                        isDeletingSection = true
+                                    }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                                        lesson.Sections.removeAll { $0.id == section.id }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                                            withAnimation(.smooth(duration: 0.02)) {
+                                                isDeletingSection = false
+                                            }
+                                        }
+                                    }
+                                }
+                            } label : {
+                                Label("Delete", systemImage: "trash")
+                                    .padding()
+                                    .background(.secondary.quaternary)
+                                    .foregroundStyle(.primary)
+                                    .tint(.primary)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.bottom)
                         }
-                    } label: {
-                        Label("New Section", systemImage: "plus")
+                    } else {
+                        Text(isDeletingSection ? "Deleting section..." : "Add a section with +")
                     }
+                }
+                .padding()
+                .listStyle(.plain)
+                .navigationTitle("Editing \"\(lesson.title)\"")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .navigationSubtitle("Created \(lesson.dateCreated, style: .relative) ago")
+                .toolbar {
+                    ToolbarItem {
+                        Button {
+                            withAnimation {
+                                lesson.Sections.append(Section(resources: [Resource()]))
+                            }
+                        } label: {
+                            Label("New Section", systemImage: "plus")
+                        }
+                    }
+                    
+                    ToolbarItem {
+                        NavigationLink(destination: ViewLessonView(lesson: lesson)) {
+                            Label("View", systemImage: "play.fill")
+                        }
+                    }
+                    
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer(minLength: 0)
+                        Button {
+                            focusedField = false
+                        } label: {
+                            Label("Done", systemImage: "checkmark")
+                        }
+                    }
+                }
+                .onAppear {
+                    lesson.timesOpened += 1
                 }
             }
         }
     }
 
     private func deleteSection(at offsets: IndexSet) {
-        lesson.Sections.remove(atOffsets: offsets)
+        Task {
+            withAnimation(.smooth(duration: 0.02)) {
+                isDeletingSection = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                lesson.Sections.remove(atOffsets: offsets)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                    withAnimation(.smooth(duration: 0.02)) {
+                        isDeletingSection = false
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -48,26 +116,35 @@ struct EditSectionView: View {
         VStack {
             TextField("Header", text: $section.header, axis: .vertical)
                 .font(.headline)
+                .padding(.bottom, 8)
             TextField("Content", text: $section.content, axis: .vertical)
                 .font(.body)
+                .padding(.bottom, 8)
+                .lineLimit(5...Int.max)
             TextField("Notes", text: $section.notes, axis: .vertical)
                 .font(.caption)
+                .padding(.bottom, 8)
             
             Divider()
+                .padding(.bottom, 8)
             
             Toggle("Question", isOn: $section.isQuestion)
+                .padding(.bottom, 8)
             if section.isQuestion {
                 Toggle("Open-Ended", isOn: $section.isOpenEndedQuestion)
+                    .padding(.bottom, 8)
             }
             if section.isQuestion && !section.isOpenEndedQuestion {
                 TextField("Answer", text: $section.answer, axis: .vertical)
                     .bold()
+                    .padding(.bottom, 8)
             }
             
             Divider()
+                .padding(.bottom, 8)
             
             VStack {
-                VStack(alignment: .leading) {
+                HStack {
                     Button {
                         section.resources.append(Resource())
                     } label: {
@@ -77,6 +154,8 @@ struct EditSectionView: View {
                             .foregroundStyle(.white)
                             .clipShape(Capsule())
                     }
+                    
+                    Spacer(minLength: 0)
                 }
                 ForEach($section.resources) { $resource in
                     HStack {
@@ -104,7 +183,7 @@ struct EditSectionView: View {
                             }
                         }
                     }
-                    .padding(.vertical, 5)
+                    .padding(.vertical, 2)
                 }
             }
         }
