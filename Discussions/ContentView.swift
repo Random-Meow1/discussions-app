@@ -205,16 +205,9 @@ struct ContentView: View {
     }
     
     private func createTestLessons() {
-        modelContext.insert(Lesson(
-            title: "Why Swift is the Best Programming Language",
-            subtitle: "Exploring the features that make Swift powerful and modern.",
-            Sections: [
-                Section(id: UUID(), header: "Introduction to Swift", content: "Swift is a fast, safe, and modern language developed by Apple.", notes: "Mention its release in 2014.", isQuestion: false, isOpenEndedQuestion: false, answer: "", resources: [], isShown: true, isAnswerShown: false),
-                Section(id: UUID(), header: "Safety Features", content: "Swift eliminates entire classes of unsafe code.", notes: "", isQuestion: true, isOpenEndedQuestion: false, answer: "Optionals and type safety.", resources: [], isShown: true, isAnswerShown: false)
-            ],
-            dateCreated: Date.now,
-            timesOpened: 2
-        ))
+        for lesson in testLessons {
+            modelContext.insert(lesson)
+        }
     }
 }
 
@@ -410,7 +403,7 @@ private struct LessonRowView: View {
                     }
                     Text(lesson.subtitle)
                         .multilineTextAlignment(.leading)
-                    Text("\(lesson.Sections.count) sections")
+                    Text("\(lesson.Sections.count) section\(lesson.Sections.count == 1 ? "" : "s")")
                         .foregroundStyle(.secondary)
                     
                     if testingMode && showInfo {
@@ -461,7 +454,7 @@ private struct FooterView: View {
     let showInfo: Bool
 
     var body: some View {
-        Text("Version 0.1 (Beta)\(testingMode ? " (Testing mode, show info is \(showInfo ? "ON" : "OFF"))" : "")")
+        Text("Version 0.2 (Beta)\(testingMode ? " (Testing mode, show info is \(showInfo ? "ON" : "OFF"))" : "")")
             .font(.caption.monospaced())
             .foregroundStyle(.secondary)
             .padding(8)

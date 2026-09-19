@@ -25,13 +25,13 @@ struct EditLessonView: View {
                 #endif
                 .navigationSubtitle("Created \(lesson.dateCreated, style: .relative) ago")
                 .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
+                    ToolbarItem {
                         Button(action: addSection) {
                             Label("New Section", systemImage: "plus")
                         }
                     }
                     
-                    ToolbarItem(placement: .secondaryAction) {
+                    ToolbarItem {
                         NavigationLink(destination: ViewLessonView(lesson: lesson)) {
                             Label("View", systemImage: "play.fill")
                         }

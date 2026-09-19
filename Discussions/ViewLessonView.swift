@@ -1,8 +1,3 @@
-//
-//  Created by Random Meow on 9/15/26.
-//  You may use any code here, as long as you give credit. Thanks!
-//
-
 import SwiftUI
 
 struct ViewLessonView: View {

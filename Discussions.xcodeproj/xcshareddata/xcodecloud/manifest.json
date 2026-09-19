@@ -1,0 +1,9 @@
+{
+  "id" : "fba126a6-e73f-49f2-ba25-16a4efe658ee",
+  "targets" : [
+    {
+      "id" : "0b136b15-8160-44f9-9ed6-096e660a05cb",
+      "name" : "Discussions"
+    }
+  ]
+}
