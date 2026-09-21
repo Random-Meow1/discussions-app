@@ -6,8 +6,6 @@ struct ViewLessonView: View {
     @State private var visibleSectionID: UUID?
     @State private var activeSectionID: UUID?
     
-    let screenHeight = UIScreen.main.bounds.height
-    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -15,9 +13,17 @@ struct ViewLessonView: View {
                     ScrollView(.vertical) {
                         LazyVStack(spacing: 0) {
                             ForEach($lesson.Sections) { $section in
-                                SectionCardView(section: $section, onMidYChange: { midY in
-                                    checkIfCentered(id: section.id, midY: midY)
-                                })
+                                SectionCardView(section: $section)
+                                    .onTapGesture {
+                                        updateShownSection(id: section.id)
+                                    }
+                                    .onAppear {
+                                        updateShownSection(id: section.id)
+                                    }
+                                    .onDisappear {
+                                        section.isShown = false
+                                        section.isAnswerShown = false
+                                    }
                             }
                         }
                         .scrollTargetLayout()
@@ -37,21 +43,6 @@ struct ViewLessonView: View {
         }
     }
     
-    func checkIfCentered(id: UUID, midY: CGFloat) {
-        let centerThreshold: CGFloat = screenHeight / 4
-        let isCentered = abs(midY - (screenHeight / 2)) < centerThreshold
-        
-        if isCentered {
-            if activeSectionID != id {
-                activeSectionID = id
-                updateShownSection(id: id)
-            }
-        } else if activeSectionID == id {
-            activeSectionID = nil
-            updateShownSection(id: nil)
-        }
-    }
-    
     func updateShownSection(id: UUID?) {
         for index in lesson.Sections.indices {
             withAnimation(.spring(duration: 0.5)) {
@@ -65,7 +56,6 @@ struct ViewLessonView: View {
 
 private struct SectionCardView: View {
     @Binding var section: Section
-    let onMidYChange: (CGFloat) -> Void
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -77,14 +67,6 @@ private struct SectionCardView: View {
         }
         .padding()
         .id(section.id)
-        .background(
-            GeometryReader { proxy in
-                Color.clear
-                    .onChange(of: proxy.frame(in: .global).midY) { _, newY in
-                        onMidYChange(newY)
-                    }
-            }
-        )
         .frame(minHeight: section.isShown ? 200 : 20, maxHeight: section.isShown ? .infinity : 100)
         .background(.secondary.quaternary)
         .clipShape(RoundedRectangle(cornerRadius: 25))

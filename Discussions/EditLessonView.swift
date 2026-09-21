@@ -4,6 +4,7 @@ import SwiftData
 struct EditLessonView: View {
     @Bindable var lesson: Lesson
     @FocusState private var focusedField: Bool
+    @State private var copiedSection: Section = Section()
     @State private var isDeletingSection: Bool = false
 
     var body: some View {
@@ -15,7 +16,42 @@ struct EditLessonView: View {
                     if !isDeletingSection && !lesson.Sections.isEmpty {
                         sectionsList
                     } else {
-                        Text(isDeletingSection ? "Deleting section..." : "Add a section with +")
+                        Text(isDeletingSection ? "Deleting section..." : "")
+                    }
+                    
+                    HStack {
+                        Button {
+                            addSection(section: Section())
+                        } label: {
+                            Label("Add section", systemImage: "plus")
+                                .padding()
+                                .background(.secondary.quaternary)
+                                .foregroundStyle(.primary)
+                                .tint(.primary)
+                                .clipShape(Capsule())
+                        }
+                        
+                        if copiedSection != Section() {
+                            Button {
+                                var newSection = copiedSection
+                                newSection.id = UUID()
+                                addSection(section: newSection)
+                            } label: {
+                                Label("Paste", systemImage: "document.on.clipboard")
+                                    .padding()
+                                    .background(.secondary.quaternary)
+                                    .foregroundStyle(.primary)
+                                    .tint(.primary)
+                                    .clipShape(Capsule())
+                            }
+                            .contextMenu {
+                                Button {
+                                    copiedSection = Section()
+                                } label: {
+                                    Label("Clear copied section", systemImage: "xmark")
+                                }
+                            }
+                        }
                     }
                 }
                 .padding()
@@ -25,12 +61,6 @@ struct EditLessonView: View {
                 #endif
                 .navigationSubtitle("Created \(lesson.dateCreated, style: .relative) ago")
                 .toolbar {
-                    ToolbarItem {
-                        Button(action: addSection) {
-                            Label("New Section", systemImage: "plus")
-                        }
-                    }
-                    
                     ToolbarItem {
                         NavigationLink(destination: ViewLessonView(lesson: lesson)) {
                             Label("View", systemImage: "play.fill")
@@ -50,6 +80,7 @@ struct EditLessonView: View {
                     lesson.timesOpened += 1
                 }
             }
+            .buttonStyle(.plain)
         }
     }
 
@@ -67,38 +98,111 @@ struct EditLessonView: View {
 
     private var sectionsList: some View {
         ForEach($lesson.Sections) { $section in
+            HStack {
+                Button {
+                    addSection(section: Section())
+                } label: {
+                    Label("Add section", systemImage: "plus")
+                        .padding()
+                        .background(.secondary.quaternary)
+                        .foregroundStyle(.primary)
+                        .tint(.primary)
+                        .clipShape(Capsule())
+                }
+                
+                if copiedSection != Section() {
+                    Button {
+                        var newSection = copiedSection
+                        newSection.id = UUID()
+                        addSection(section: newSection)
+                    } label: {
+                        Label("Paste", systemImage: "document.on.clipboard")
+                            .padding()
+                            .background(.secondary.quaternary)
+                            .foregroundStyle(.primary)
+                            .tint(.primary)
+                            .clipShape(Capsule())
+                    }
+                    .contextMenu {
+                        Button {
+                            copiedSection = Section()
+                        } label: {
+                            Label("Clear copied section", systemImage: "xmark")
+                        }
+                    }
+                }
+            }
+            
+            Divider()
+            
+            HStack {
+                if let index = lesson.Sections.firstIndex(where: { $0.id == section.id }) {
+                    if index > 0 {
+                        Button {
+                            var newSection = section
+                            newSection.id = UUID()
+                            removeSection(id: section.id)
+                            lesson.Sections.insert(newSection, at: index - 1)
+                        } label: {
+                            Label("Move up", systemImage: "arrow.up")
+                                .padding()
+                                .background(.secondary.quaternary)
+                                .foregroundStyle(.primary)
+                                .tint(.primary)
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+                
+                Spacer(minLength: 0)
+            }
+            
             EditSectionView(section: $section)
                 .focused($focusedField)
             
-            Button(role: .destructive) {
-                removeSection(id: section.id)
-            } label: {
-                Label("Delete", systemImage: "trash")
-                    .padding()
-                    .background(.secondary.quaternary)
-                    .foregroundStyle(.primary)
-                    .tint(.primary)
-                    .clipShape(Capsule())
+            HStack {
+                Button(role: .destructive) {
+                    removeSection(id: section.id)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                        .padding()
+                        .background(.secondary.quaternary)
+                        .foregroundStyle(.red)
+                        .tint(.red)
+                        .clipShape(Capsule())
+                }
+                
+                Spacer(minLength: 0)
+                
+                Button {
+                    var sectionToCopy = section
+                    sectionToCopy.id = UUID()
+                    copiedSection = sectionToCopy
+                } label: {
+                    Label("Copy", systemImage: "document.on.document")
+                        .padding()
+                        .background(.secondary.quaternary)
+                        .foregroundStyle(.primary)
+                        .tint(.primary)
+                        .clipShape(Capsule())
+                }
             }
             .buttonStyle(.plain)
-            .padding(.bottom)
+            
+            Divider()
         }
     }
 
-    private func addSection() {
-        lesson.Sections.append(Section(resources: [Resource()]))
+    func addSection(section: Section) {
+        lesson.Sections.append(section)
     }
 
-    private func removeSection(id: UUID) {
-        withAnimation(.smooth(duration: 0.02)) {
-            isDeletingSection = true
-        }
+    func removeSection(id: UUID) {
+        isDeletingSection = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
             lesson.Sections.removeAll { $0.id == id }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                withAnimation(.smooth(duration: 0.02)) {
-                    isDeletingSection = false
-                }
+                isDeletingSection = false
             }
         }
     }
@@ -154,7 +258,7 @@ struct EditSectionView: View {
                     Label("Add Resource", systemImage: "link")
                         .padding(8)
                         .background(.secondary.quaternary)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .clipShape(Capsule())
                 }
                 Spacer(minLength: 0)
@@ -193,7 +297,7 @@ private struct ResourceRowView: View {
                         .padding(.horizontal)
                         .padding(.vertical, 12)
                         .background(.secondary.quaternary)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .clipShape(Capsule())
                 }
             }

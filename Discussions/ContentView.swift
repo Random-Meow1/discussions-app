@@ -11,42 +11,6 @@ import SwiftData
     }
 }
 
-@Model
-class Lesson {
-    var title: String
-    var subtitle: String
-    var Sections: [Section]
-    var dateCreated: Date
-    var timesOpened: Int
-    
-    init(title: String = "", subtitle: String = "", Sections: [Section] = [], dateCreated: Date = Date.now, timesOpened: Int = 0) {
-        self.title = title
-        self.subtitle = subtitle
-        self.Sections = Sections
-        self.dateCreated = dateCreated
-        self.timesOpened = timesOpened
-    }
-}
-
-struct Section: Codable, Identifiable {
-    var id: UUID = UUID()
-    var header: String = ""
-    var content: String = ""
-    var notes: String = ""
-    var isQuestion: Bool = false
-    var isOpenEndedQuestion: Bool = false
-    var answer: String = ""
-    var resources: [Resource] = []
-    var isShown: Bool = false
-    var isAnswerShown: Bool = false
-}
-
-struct Resource: Codable, Identifiable {
-    var id: UUID = UUID()
-    var link: String = ""
-    var displayText: String = ""
-}
-
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query var lessons: [Lesson]
@@ -59,8 +23,12 @@ struct ContentView: View {
     
     @AppStorage("Testing Mode") private var testingMode: Bool = false
     @AppStorage("Show Info") private var showInfo: Bool = true
+    @AppStorage("Version Dismissed") var versionDismissed: String = ""
     @State private var isMoreOptionsShown: Bool = false
     @State private var deleteAllConfirmation: Bool = false
+    
+    @State private var isImportSheetPresented: Bool = false
+    @State private var pendingImportURL: URL? = nil
     
     var body: some View {
         NavigationStack {
@@ -71,6 +39,7 @@ struct ContentView: View {
                     PrimaryActionBar(
                         testingMode: testingMode,
                         isMoreOptionsShown: $isMoreOptionsShown,
+                        isImportSheetPresented: $isImportSheetPresented,
                         onNewLesson: createNewLesson,
                         onCreateTestLessons: createTestLessons
                     )
@@ -100,8 +69,28 @@ struct ContentView: View {
                 .navigationSubtitle("\(lessons.count) lessons")
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding()
+                .blur(radius: isImportSheetPresented || versionDismissed != version ? 20 : 0)
+                .opacity(isImportSheetPresented || versionDismissed != version ? 0.3 : 1)
+                
+                if isImportSheetPresented {
+                    ImportSheet(
+                        isImportSheetPresented: $isImportSheetPresented,
+                        pendingURL: pendingImportURL
+                    )
+                }
+                
+                if versionDismissed != version {
+                    WhatsNewView()
+                        .padding()
+                }
             }
             .buttonStyle(.plain)
+            .onOpenURL { url in
+                pendingImportURL = url
+                withAnimation(.snappy(duration: 0.5)) {
+                    isImportSheetPresented = true
+                }
+            }
         }
     }
     
@@ -209,6 +198,14 @@ struct ContentView: View {
             modelContext.insert(lesson)
         }
     }
+    
+    func randomTitle() -> String {
+        let adjectives = ["Happy", "Bright", "Quick", "Silent", "Brave", "Calm", "Eager"]
+        let nouns = ["Apple", "Banana", "Orange", "Strawberry", "Grape", "Lemon"]
+        let adjective = adjectives.randomElement()!
+        let noun = nouns.randomElement()!
+        return "\(adjective) \(noun)"
+    }
 }
 
 // MARK: - Subviews
@@ -216,6 +213,7 @@ struct ContentView: View {
 private struct PrimaryActionBar: View {
     let testingMode: Bool
     @Binding var isMoreOptionsShown: Bool
+    @Binding var isImportSheetPresented: Bool
     let onNewLesson: () -> Void
     let onCreateTestLessons: () -> Void
 
@@ -266,6 +264,7 @@ private struct SecondaryActionBar: View {
     @Binding var testingMode: Bool
     @Binding var showInfo: Bool
     @Binding var deleteAllConfirmation: Bool
+    @AppStorage("Version Dismissed") var versionDismissed: String = ""
     let isDisabled: Bool
     let onDeleteAll: () -> Void
 
@@ -285,7 +284,7 @@ private struct SecondaryActionBar: View {
                 }
                 .disabled(isDisabled)
                 
-                if let url = URL(string: "mailto:randommeowofficial@icloud.com") {
+                if let url = URL(string: "https://github.com/Random-Meow1/discussions-app/issues/new") {
                     Link(destination: url) {
                         Label("Send feedback", systemImage: "bubble.and.pencil")
                             .padding()
@@ -312,7 +311,120 @@ private struct SecondaryActionBar: View {
                             .clipShape(Capsule())
                     }
                 }
+                
+                Button {
+                    withAnimation(.snappy(duration: 0.5)) {
+                        versionDismissed = ""
+                    }
+                } label: {
+                    Label("Show what's new", systemImage: "eye")
+                        .padding()
+                        .background(.secondary.quaternary)
+                        .foregroundStyle(.primary)
+                        .tint(.primary)
+                        .clipShape(Capsule())
+                }
             }
+        }
+    }
+}
+
+private struct ImportSheet: View {
+    @Environment(\.modelContext) private var modelContext
+    @Binding var isImportSheetPresented: Bool
+    let pendingURL: URL?
+
+    private var pendingLesson: Lesson? {
+        guard let url = pendingURL, let dto = LessonDTO.from(url: url) else { return nil }
+        return dto.toModel()
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 20) {
+                HStack {
+                    Button {
+                        withAnimation(.snappy(duration: 0.5)) {
+                            isImportSheetPresented = false
+                        }
+                    } label: {
+                        Label("Cancel", systemImage: "xmark")
+                            .padding()
+                            .background(.secondary.quaternary)
+                            .foregroundStyle(.primary)
+                            .tint(.primary)
+                            .clipShape(Capsule())
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        if let lesson = pendingLesson {
+                            modelContext.insert(lesson)
+                            try? modelContext.save()
+                        }
+                        withAnimation(.snappy(duration: 0.5)) {
+                            isImportSheetPresented = false
+                        }
+                    } label: {
+                        Label("Import Lesson", systemImage: "square.and.arrow.down")
+                            .padding()
+                            .background(.secondary.quaternary)
+                            .foregroundStyle(.tint)
+                            .tint(.accentColor)
+                            .clipShape(Capsule())
+                    }
+                    .disabled(pendingLesson == nil)
+                }
+
+                if let lesson = pendingLesson {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Ready to import:")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        Text(lesson.title.isEmpty ? "Untitled Lesson" : lesson.title)
+                            .font(.title2.bold())
+
+                        if !lesson.subtitle.isEmpty {
+                            Text(lesson.subtitle)
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Text("\(lesson.Sections.count) section\(lesson.Sections.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.secondary.quaternary)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Invalid Import Link")
+                            .font(.headline)
+                            .foregroundStyle(.red)
+
+                        Text("The shared link is corrupt or could not be parsed.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.secondary.quaternary)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                }
+            }
+            .padding()
+            .background(.secondary.quaternary)
+            .foregroundStyle(.primary)
+            .tint(.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 30))
+            .padding()
         }
     }
 }
@@ -375,6 +487,32 @@ struct LessonListView: View {
                         showInfo: showInfo,
                         onDelete: { modelContext.delete(lesson) }
                     )
+                    .contextMenu {
+                        Button {
+                            modelContext.insert(Lesson(title: lesson.title, subtitle: lesson.subtitle, Sections: lesson.Sections, dateCreated: Date.now, timesOpened: 0))
+                        } label: {
+                            Label("Duplicate", systemImage: "document.on.document")
+                        }
+                        
+                        if let shareURL = LessonDTO(from: lesson).shareableURL {
+                            ShareLink(
+                                item: shareURL,
+                                subject: Text("\(lesson.title)"),
+                                message: Text("\(lesson.title)\n\(lesson.subtitle)")
+                            ) {
+                                Label("Share...", systemImage: "square.and.arrow.up")
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        Button(role: .destructive) {
+                            modelContext.delete(lesson)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .tint(.red)
+                    }
                 }
             }
         }
@@ -452,21 +590,32 @@ private struct LessonRowView: View {
 private struct FooterView: View {
     let testingMode: Bool
     let showInfo: Bool
+    @State private var isWarningShown: Bool = false
 
     var body: some View {
-        Text("Version 0.2 (Beta)\(testingMode ? " (Testing mode, show info is \(showInfo ? "ON" : "OFF"))" : "")")
-            .font(.caption.monospaced())
-            .foregroundStyle(.secondary)
-            .padding(8)
+        VStack(alignment: .leading) {
+            HStack {
+                Text("Version \(version)\(testingMode ? " (Testing mode, show info is \(showInfo ? "ON" : "OFF"))" : "")")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        isWarningShown.toggle()
+                    }
+                } label: {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.tint)
+                }
+            }
+            if isWarningShown {
+                Text("There may be some bugs while in beta. Do not completely rely on Discussions to save your lessons while the app is still pre-release.")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.primary)
+                    .padding(.top, 4)
+            }
+        }
+        .padding(8)
     }
-}
-
-func randomTitle() -> String {
-    let adjectives = ["Happy", "Bright", "Quick", "Silent", "Brave", "Calm", "Eager"]
-    let nouns = ["Apple", "Banana", "Orange", "Strawberry", "Grape", "Lemon"]
-    let adjective = adjectives.randomElement()!
-    let noun = nouns.randomElement()!
-    return "\(adjective) \(noun)"
 }
 
 #Preview {
